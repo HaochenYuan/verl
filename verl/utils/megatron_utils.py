@@ -31,8 +31,11 @@ from megatron.core.optimizer import ChainedOptimizer, OptimizerConfig
 from megatron.core.transformer import TransformerConfig
 from megatron.core.transformer.module import Float16Module
 from megatron.core.utils import get_attr_wrapped_model
-from megatron.core.transformer.pipeline_parallel_layer_layout import PipelineParallelLayerLayout
-from megatron.core.transformer.enums import LayerType
+try:
+    from megatron.core.transformer.pipeline_parallel_layer_layout import PipelineParallelLayerLayout
+    from megatron.core.transformer.enums import LayerType
+except ImportError:
+    print("Current Megatron version doesn't support custom pipeline layout, consider update to latest version.")
 from transformers import PretrainedConfig
 
 import verl.utils.megatron.tensor_parallel as tp_utils
