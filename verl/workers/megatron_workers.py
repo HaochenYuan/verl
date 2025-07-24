@@ -522,8 +522,12 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
         metrics["perf/cpu_memory_used_gb"] = psutil.virtual_memory().used / (1024**3)
         from verl.utils.megatron.optimizer import get_megatron_last_lr
 
-        metrics["actor/lr"] = get_megatron_last_lr(self.actor_optimizer)
-        self.actor_optimizer_scheduler.step(1)
+        # no need to update actor when process hold zero parameters, which may happen in custom pipeline layout
+        if len(self.actor_optimizer.param_groups) == 0:
+            print(f"one actor no update to actor lr.")
+        else:
+            metrics["actor/lr"] = get_megatron_last_lr(self.actor_optimizer)
+            self.actor_optimizer_scheduler.step(1)
 
         # TODO: here, we should return all metrics
         output = DataProto(meta_info={"metrics": metrics})
