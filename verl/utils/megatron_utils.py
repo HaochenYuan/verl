@@ -31,6 +31,11 @@ from megatron.core.optimizer import ChainedOptimizer, OptimizerConfig
 from megatron.core.transformer import TransformerConfig
 from megatron.core.transformer.module import Float16Module
 from megatron.core.utils import get_attr_wrapped_model
+try:
+    from megatron.core.transformer.pipeline_parallel_layer_layout import PipelineParallelLayerLayout
+    from megatron.core.transformer.enums import LayerType
+except ImportError:
+    print("Current Megatron version doesn't support custom pipeline layout, consider update to latest version.")
 from transformers import PretrainedConfig
 
 import verl.utils.megatron.tensor_parallel as tp_utils
@@ -898,7 +903,25 @@ def get_transformer_layer_offset(pipeline_rank, vp_rank, config: TransformerConf
 
     Extension to https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/transformer_layer.py::get_transformer_layer_offset"""
     '''
-    if config.pipeline_model_parallel_size > 1:
+    if config.pipeline_model_parallel_layout != None:
+        layout = config.pipeline_model_parallel_layout.parse_str_to_list(config.pipeline_model_parallel_layout.input_data)
+        """Parse a layout string to a list of lists.
+        Example: "Ettt|(tt|)*29,m|L" will be parsed to
+        [["E","t","t","t"]]+[["t","t"]]*29+[["m"],["L"]]"""
+        offset = 0
+        if mpu.get_virtual_pipeline_model_parallel_world_size() is not None:
+            vp_size = mpu.get_virtual_pipeline_model_parallel_world_size()
+            assert vp_size > 1, "virtual pipeline size must > 1 if virtual pipeline is enabled"
+            for _vpp_rank in range(vp_size):
+                for _pp_rank in range(
+                    config.pipeline_model_parallel_size if _vpp_rank < vp_size else pipeline_rank
+                ):
+                    offset += layout[_pp_rank][_vpp_rank].count(LayerType.decoder)
+        else:
+            for _pp_rank in range(pipeline_rank):
+                offset += layout[_pp_rank].count(LayerType.decoder)
+        return offset
+    elif config.pipeline_model_parallel_size > 1:
         if (
             config.num_layers_in_first_pipeline_stage is not None
             or config.num_layers_in_last_pipeline_stage is not None
