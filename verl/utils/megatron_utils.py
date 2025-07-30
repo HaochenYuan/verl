@@ -417,6 +417,11 @@ def offload_megatron_optimizer(optimizers):
 
     for _opt in _iter_opts(optimizers):
         offload_megatron_copy_params(_opt)
+        ## worker may hold zero parameter when enabling custom pipeline layout
+        if _opt.optimizer == None:
+            gc.collect()
+            get_torch_device().empty_cache()
+            continue
         opt_state_dict_values = _opt.optimizer.state.values()
         for v in opt_state_dict_values:
             if "exp_avg" in v:
@@ -436,6 +441,11 @@ def load_megatron_optimizer(optimizers):
 
     for _opt in _iter_opts(optimizers):
         load_megatron_copy_params(_opt)
+        ## worker may hold zero parameter when enabling custom pipeline layout
+        if _opt.optimizer == None:
+            gc.collect()
+            get_torch_device().empty_cache()
+            continue
         opt_state_dict_values = _opt.optimizer.state.values()
         for v in opt_state_dict_values:
             if "exp_avg" in v:
